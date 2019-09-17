@@ -1,8 +1,9 @@
 import os
 import subprocess
 from date_checker import date_boundary
+from section import *
 
-def ply_to_bin(overwrite,src,dest,registration_folder):
+def ply_to_bin(overwrite,src,dest):
     
     print("Converting .ply files to .bin files")
     print("")
