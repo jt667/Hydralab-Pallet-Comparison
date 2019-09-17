@@ -81,11 +81,11 @@ def main_processing_run():
     #Run the ply to bin conversion if option is ticked
     if ply_to_bin_var.get():
         src,dest = ply_to_bin_paths(src_file_var.get(),dest_file_var.get())
-        main_processing.ply_to_bin(replace_file_var.get(),src,dest,registration_path)
+        main_processing.ply_to_bin(replace_file_var.get(),src,dest)
     #Run the crop clouds if option is ticked
     if crop_clouds_var.get():
         src,dest = crop_paths(src_file_var.get(),dest_file_var.get())
-        main_processing.crop(replace_file_var.get(),src,dest)
+        main_processing.crop(replace_file_var.get(),registration_path,src,dest)
     #Run the M3C3 comparsion if option is ticked
     if m3c2_var.get():
         src,dest = m3c2_paths(src_file_var.get(),dest_file_var.get())   
@@ -520,7 +520,7 @@ replace_file_var = tkinter.BooleanVar()
 src_file = ttk.Checkbutton(opt_window, text="Use different source folder for first program running?", variable=src_file_var, command=src_readonly)
 dest_file = ttk.Checkbutton(opt_window, text="Use different destination folder for last program running?)", variable=dest_file_var, onvalue=True, command=dest_readonly)
 registration_file = ttk.Checkbutton(opt_window,text="Use different folder path for registration error files?", variable=registration_file_var, command=registration_readonly)
-m3c2_parameter_file = ttk.Checkbutton(opt_window,text="Use different M3C2 parameter file?", variable = m3c2_parameter_file_var, command=m3c2_readonly)
+m3c2_parameter_file = ttk.Checkbutton(opt_window,text="Use different folder path for M3C2 parameter file?", variable = m3c2_parameter_file_var, command=m3c2_readonly)
 replace_file = ttk.Checkbutton(opt_window, text="Replace files if they already exist?", variable=replace_file_var)
 
 
