@@ -1,7 +1,6 @@
 import os
 import subprocess
 from date_checker import date_boundary
-from timeit import default_timer as timer
 from tempfile import mkstemp
 from shutil import move
 from os import fdopen, remove
