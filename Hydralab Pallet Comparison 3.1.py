@@ -13,7 +13,7 @@ def replace_directory(str1,directory):
     current_directory = str1[last_backslash:len(str1)]
     return str1.replace(current_directory,directory)
 
-version = "3.1"
+version = "3.2"
 
 #Create output folder if it doesn't already exist
 os.makedirs(os.getcwd()  + r"\Comparison Output",exist_ok=True)
