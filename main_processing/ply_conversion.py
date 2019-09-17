@@ -1,5 +1,6 @@
 import os
 import subprocess
+from timeit import default_timer as timer
 from date_checker import date_boundary
 from section_week import *
 
