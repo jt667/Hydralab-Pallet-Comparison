@@ -220,8 +220,8 @@ def volume_calculation(overwrite,src,dest,point_folder):
                     for poly in feature_list:
                         estimated_volumes[poly.pallet] += poly.volume
                     with open(volume_file,"a") as file:
-                        for i in pallet_numbers:
-                            file.write("Pallet " + str(i) + ":" + str(estimated_volumes[i-1]) + "m^3 \n")
+                        for i in range(len(pallet_numbers)):
+                            file.write("Pallet " + str(pallet_numbers[i]) + ":" + str(estimated_volumes[i]) + "m^3 \n")
                 
                 #Create output contour file
                 outShapefile = src + "\\" + filename.replace("shp","")
@@ -271,7 +271,7 @@ def volume_calculation(overwrite,src,dest,point_folder):
                     feature.SetField("Volume", contour.volume_below)
                     feature.SetField("D Volume", contour.volume)
                     feature.SetField("M3C2", contour.M3C2)
-                    feature.SetField("Pallet",contour.pallet + 1)
+                    feature.SetField("Pallet",contour.pallet)
                     feature.SetField("Point", contour.points)
                     feature.SetField("Contained",contour.contained)
                     feature.SetField("Within", contour.within)
