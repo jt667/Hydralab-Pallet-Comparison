@@ -97,12 +97,33 @@ def z_shift_bin(overwrite,src,registration_folder,section,week,cc_path):
             #Removes the time stamp from the shifted file name and adds "_Z_Shifted" to the filename
             os.rename(shift_path.replace(filename,time_stamped_name),shift_path.replace(".bin","_Z_Shifted.bin"))
 
+def get_pallet_numbers(section,week):
+    #Gets the pallet numbers from their filenames
+    return [x[-5] for x in os.listdir(os.getcwd() + "\\parameter_files\\cropping_dimensions") if section + "_" +  week in x ]
+
+def cropping_pallets(bin_path,cropping_dimensions):
+    #Returns a list of commands for subprocess 
+    #e.g ["-O",bin_path,"-CROP",crop_dims[0],"-CLEAR","-O",bin_path,"-CROP",crop_dims[1],"-CLEAR"]
+    
+    open_list = ["-O" for x in range(len(cropping_dimensions))]
+    bin_list = [bin_path for x in range(len(cropping_dimensions))]
+    crop_list = ["-CROP" for x in range(len(cropping_dimensions))]
+    clear_list = ["-CLEAR" for x in range(len(cropping_dimensions))]
+    command_list = []
+    for x in zip(open_list,bin_list,crop_list,cropping_dimensions,clear_list):
+        command_list += list(x)
+    return command_list
+    
+def pallet_list(pallet_files):
+    open_list = ["-O" for x in range(len(pallet_files))]
+    merge_list = []
+    for x in zip(open_list,pallet_files):
+        merge_list += list(x)
+    return merge_list
 
 def crop(overwrite,registration_folder,src,dest):
-    print("Cropping the clouds")
-    print("")
     #Path to the CloudCompare exe file
-    
+    cc_path = r"C:\Program Files\CloudCompare\CloudCompare.exe"
     
     #Creates the destination folder if it does not already exist
     os.makedirs(dest,exist_ok=True)
@@ -114,15 +135,15 @@ def crop(overwrite,registration_folder,src,dest):
         #Translate the bin file using the median given from the M3C2 calculation on the wooden edges of the pallet
         z_shift_bin(overwrite,src,registration_folder,section,week,cc_path)
         
-        #Read the cropping dimensions for each of the four pallets
-        with open(os.getcwd() + "\\parameter_files\\cropping_dimensions\\" + section + "_" + week + "_pallet_1.txt") as pallet_dims:
-            pallet_1_dims = pallet_dims.readline()
-        with open(os.getcwd() + "\\parameter_files\\cropping_dimensions\\" + section + "_" + week + "_pallet_2.txt") as pallet_dims:
-            pallet_2_dims = pallet_dims.readline()
-        with open(os.getcwd() + "\\parameter_files\\cropping_dimensions\\" + section + "_" + week + "_pallet_3.txt") as pallet_dims:
-            pallet_3_dims = pallet_dims.readline()
-        with open(os.getcwd() + "\\parameter_files\\cropping_dimensions\\" + section + "_" + week + "_pallet_4.txt") as pallet_dims:
-            pallet_4_dims = pallet_dims.readline()
+        print("Cropping the clouds")
+        print("")
+        
+        pallet_dimensions = []
+        
+        #Read the cropping dimensions for each of the pallets
+        for number in get_pallet_numbers(section,week):
+            with open(os.getcwd() + "\\parameter_files\\cropping_dimensions\\" + section + "_" + week + "_pallet_" +  number + ".txt") as pallet_dims:
+                pallet_dimensions += [pallet_dims.readline().replace("\n","")]
         
         
         #List the bin files in src for this section and week that have either been shifted using the median or are the first day of the week
@@ -143,9 +164,8 @@ def crop(overwrite,registration_folder,src,dest):
                 # -O opens the file listed directly after
                 # -CROP crops all loaded clouds with parameters {Xmin:Ymin:Zmin:Xmax:Ymax:Zmax}
                 # -CLEAR clears all the loaded clouds
-                subprocess.run([cc_path,"-SILENT", "-O",bin_path,"-CROP", pallet_1_dims ,"-CLEAR","-O",bin_path, 
-                                "-CROP", pallet_2_dims,"-CLEAR", "-O",bin_path,"-CROP", pallet_3_dims,"-CLEAR", "-O",bin_path, "-CROP", 
-                                pallet_4_dims ] ,shell = True)
+                #Cropping pallets produces the list containg command line code for any number of pallets
+                subprocess.run([cc_path,"-SILENT"] + cropping_pallets(bin_path,pallet_dimensions) ,shell = True)
         
         
                 bin_path = bin_path.replace(".bin","")
@@ -153,28 +173,22 @@ def crop(overwrite,registration_folder,src,dest):
                 print(bin_path)
                 print("")
                 
-                #Lists the cropped pallet files and assigns their file paths to variables
-                pallet_files = diff(os.listdir(src),all_files)
-                pallet_1 = src + "\\" + pallet_files[0]
-                pallet_2 = src + "\\" + pallet_files[1]
-                pallet_3 = src + "\\" + pallet_files[2]
-                pallet_4 = src + "\\" + pallet_files[3]
+                #Lists the cropped pallet files and assigns their file path
+                pallet_files = [src + "\\" + x for x in diff(os.listdir(src),all_files)]
                
                 #Merges the four pallets into one cloud
                 # -SILENT stops a cloud compare console popping up (useful for debug as it will stop the program after completing its task)
                 # -O opens the file listed directly after
                 # -MERGE_CLOUDS merges all the loaded clouds
-                subprocess.run([cc_path,"-SILENT","-O", pallet_1,"-O",pallet_2,"-O",pallet_3,"-O",pallet_4,"-MERGE_CLOUDS"],shell = True)
+                subprocess.run([cc_path,"-SILENT"] + pallet_list(pallet_files) +["-MERGE_CLOUDS"],shell = True)
                 
                 print("Merged cropped clouds for:")
                 print(bin_path)
                 print("")
                 
-                #Deletes the indivdually cropped pallet files
-                os.remove(pallet_1)
-                os.remove(pallet_2)
-                os.remove(pallet_3)
-                os.remove(pallet_4)
+                #Deletes the individually cropped pallet files
+                for pallet in pallet_files:
+                    os.remove(pallet)
                 
                 #Finds the name of the merged file by comparing the list of files from before the cropping with the current list of files in the src directory
                 merge_file = diff(os.listdir(src),all_files)[0] 
