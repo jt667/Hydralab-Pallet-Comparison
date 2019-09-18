@@ -14,7 +14,7 @@ import re
 
 class Contour_Polygon:
     
-    def __init__(self,FID,layer,pallet_bounds,pallet_points):
+    def __init__(self,FID,layer,pallet_bounds,pallet_points,pallet_numbers):
         self.FID = FID
         self.layer = layer
         
@@ -32,7 +32,7 @@ class Contour_Polygon:
         self.volume = - self.polygon.area * self.M3C2
         
         #Checks the pallet that the contour is contained in
-        self.pallet = self.pallet_checker(pallet_bounds)
+        self.pallet = self.pallet_checker(pallet_bounds,pallet_numbers)
         
         #Check which points the contour contains
         self.points = self.contained_points(pallet_points)
@@ -75,18 +75,13 @@ class Contour_Polygon:
     
     def pallet_checker(self,pallets):
         #Check if a pallet contains or overlaps with a polygon
-        if pallets[0].contains(self.polygon) or pallets[0].overlaps(self.polygon):
-            return 0
-        if pallets[1].contains(self.polygon) or pallets[1].overlaps(self.polygon):
-            return 1
-        if pallets[2].contains(self.polygon) or pallets[2].overlaps(self.polygon):
-            return 2
-        if pallets[3].contains(self.polygon) or pallets[3].overlaps(self.polygon):
-            return 3
+        for i in range(len(pallets)):
+            if pallets[i].contains(self.polygon) or pallets[i].overlaps(self.polygon):
+                return numbers[i]
         print(self.FID)
         
         
-    def contained_points(self,points_to_check):
+    def contained_points(self,points_to_check,numbers):
         contained = ""
         for point in points_to_check[self.pallet]:
             #If the polygon contains a point, add it to the list and update the number of contours the point is within
@@ -105,7 +100,7 @@ class Contour_Polygon:
 class Plant_Point:
     point_id = 0
     
-    def __init__(self,coords,pallet_bounds):
+    def __init__(self,coords,pallet_bounds,pallet_numbers):
         coords= coords.replace("\)","").replace(" ","").replace("\(","")
         
         #Set x,y coordinates
@@ -129,14 +124,9 @@ class Plant_Point:
         
     def pallet_checker(self,pallets):
         #Check if a pallet contains or overlaps with a point
-        if pallets[0].contains(self.shapely_point):
-            return 0
-        if pallets[1].contains(self.shapely_point):
-            return 1
-        if pallets[2].contains(self.shapely_point):
-            return 2
-        if pallets[3].contains(self.shapely_point):
-            return 3
+        for i in range(len(pallets)):
+            if pallets[i].contains(self.shapely_point):
+                return pallet_numbers[i]
         
         
 def estimated_volume_check(overwrite,volume_file,section,week):
@@ -152,18 +142,19 @@ def estimated_volume_check(overwrite,volume_file,section,week):
 def pallet_dimensions(section,week):       
     pallet_polygons = []
     pallet_dimensions = []
+    numbers = get_pallet_numbers(section,week)
     
     #Read pallet dimensions
-    for i in range(1,5):
+    for i in numbers:
         with open(os.getcwd() + "\\parameter_files\\cropping_dimensions\\" + section + "_" + week + "_pallet_" + str(i) + ".txt") as pallet_dims:
             pallet_dimensions += [pallet_dims.readline().split(":")]
-    for i in range(4):
+    for i in range(len(numbers)):
         pallet_dimensions[i] = pallet_dimensions[i][0:2] + pallet_dimensions[i][3:5]
         pallet_dimensions[i] = [(float(pallet_dimensions[i][0]),float(pallet_dimensions[i][1])),(float(pallet_dimensions[i][0]),float(pallet_dimensions[i][3])),(float(pallet_dimensions[i][2]),float(pallet_dimensions[i][3])),(float(pallet_dimensions[i][2]),float(pallet_dimensions[i][1]))]
         
         #Create polygons from the pallet dimensions
         pallet_polygons += [Polygon(pallet_dimensions[i])]
-    return pallet_polygons
+    return pallet_polygons,numbers
     
 
 def volume_calculation(overwrite,src,dest,point_folder):
@@ -181,18 +172,21 @@ def volume_calculation(overwrite,src,dest,point_folder):
         shapefiles = [x for x in os.listdir(src) if ".shp" in x and "Zone" + section in x and date_boundary(x,week) and not ".lock" in x ]
         
         #Generate polygons for the pallets 
-        pallet_bounds = pallet_dimensions(section,week)
+        pallet_bounds,pallet_numbers = pallet_dimensions(section,week)
         
         #Read points file
-        with open(point_folder + "\\" + week + section + ".txt.") as points_file:
-            plant_points = points_file.readlines()
+        try:
+            with open(point_folder + "\\" + week + section + ".txt.") as points_file:
+                plant_points = points_file.readlines()
+        except:
+            plant_points = []
         
         pallet_points = [[],[],[],[]]
         for point in plant_points:
             #Read pairs of coordinates that are written on lines like: x,y 
             if "," in point and not re.search("[a-zA-Z]",point):
                 #Generate points
-                temp_point = Plant_Point(point,pallet_bounds)
+                temp_point = Plant_Point(point,pallet_bounds,pallet_numbers)
                 pallet_points[temp_point.pallet] += [temp_point]
             
         for filename in shapefiles:
@@ -226,8 +220,8 @@ def volume_calculation(overwrite,src,dest,point_folder):
                     for poly in feature_list:
                         estimated_volumes[poly.pallet] += poly.volume
                     with open(volume_file,"a") as file:
-                        for i in range(4):
-                            file.write("Pallet " + str(i + 1) + ":" + str(estimated_volumes[i]) + "m^3 \n")
+                        for i in pallet_numbers:
+                            file.write("Pallet " + str(i) + ":" + str(estimated_volumes[i-1]) + "m^3 \n")
                 
                 #Create output contour file
                 outShapefile = src + "\\" + filename.replace("shp","")
@@ -304,60 +298,60 @@ def volume_calculation(overwrite,src,dest,point_folder):
                     os.remove(data_file.replace(".shp",".shx"))
                 os.rename(outShapefile + ".shx",data_file.replace(".shp",".shx"))
     
-    
-                #Create point file
-                outShapefile = src + "\\" + filename.replace("shp","") + "points"
-                driver = ogr.GetDriverByName("ESRI Shapefile")
-                outDataSource = driver.CreateDataSource( outShapefile  +".shp" )
-                
-                point_layer = outDataSource.CreateLayer('points')
-                
-                #Create output fields
-                point_pallet_field =  ogr.FieldDefn("Pallet", ogr.OFTInteger)
-                point_layer.CreateField(point_pallet_field)
-                point_point_list_field = ogr.FieldDefn("Point", ogr.OFTString)
-                point_layer.CreateField(point_point_list_field)
-                point_within_field = ogr.FieldDefn("Within", ogr.OFTInteger)
-                point_layer.CreateField(point_within_field)
-                x_field = ogr.FieldDefn("X", ogr.OFTReal)
-                x_field.SetPrecision(8)
-                point_layer.CreateField(x_field)
-                y_field = ogr.FieldDefn("Y", ogr.OFTReal)
-                y_field.SetPrecision(8)
-                point_layer.CreateField(y_field)
-    
-                #Add points to file with fields
-                for point_list in pallet_points:
-                    for point in point_list:
-                        featureDefn = point_layer.GetLayerDefn()
-                        feature = ogr.Feature(featureDefn)
-                        feature.SetGeometry(point.arc_point)
-                        feature.SetField("Pallet",point.pallet + 1)
-                        feature.SetField("Point", point.id)
-                        feature.SetField("Within", point.within)
-                        feature.SetField("X", point.x)
-                        feature.SetField("Y", point.y)
-                        point_layer.CreateFeature(feature)
-                        feature = None
-                
-                #Close point file
-                outDataSource=None
-                del outDataSource
-                
-                
-                #Delete files if they already exist and the overwrite option is on
-                #Rename the new files
-                if overwrite and os.path.exists(data_file.replace(".shp","points.shp")):
-                    os.remove(dest + "\\" + filename.replace(".tif","_Contour_Shapefilepoints.shp")).replace("Raster_Z","")
-                os.rename(outShapefile + ".shp",data_file.replace(".shp","points.shp"))
-                
-                
-                if os.path.exists(data_file.replace(".shp","points.dbf")):
-                    os.remove(data_file.replace(".shp","points.dbf"))
-                os.rename(outShapefile + ".dbf",data_file.replace(".shp","points.dbf"))
-                
-                
-                if os.path.exists(data_file.replace(".shp","points.shx")):
-                    os.remove(data_file.replace(".shp","points.shx"))
-                os.rename(outShapefile + ".shx",data_file.replace(".shp","points.shx"))
+                if len(plant_points) != 0:
+                    #Create point file
+                    outShapefile = src + "\\" + filename.replace("shp","") + "points"
+                    driver = ogr.GetDriverByName("ESRI Shapefile")
+                    outDataSource = driver.CreateDataSource( outShapefile  +".shp" )
+
+                    point_layer = outDataSource.CreateLayer('points')
+
+                    #Create output fields
+                    point_pallet_field =  ogr.FieldDefn("Pallet", ogr.OFTInteger)
+                    point_layer.CreateField(point_pallet_field)
+                    point_point_list_field = ogr.FieldDefn("Point", ogr.OFTString)
+                    point_layer.CreateField(point_point_list_field)
+                    point_within_field = ogr.FieldDefn("Within", ogr.OFTInteger)
+                    point_layer.CreateField(point_within_field)
+                    x_field = ogr.FieldDefn("X", ogr.OFTReal)
+                    x_field.SetPrecision(8)
+                    point_layer.CreateField(x_field)
+                    y_field = ogr.FieldDefn("Y", ogr.OFTReal)
+                    y_field.SetPrecision(8)
+                    point_layer.CreateField(y_field)
+
+                    #Add points to file with fields
+                    for point_list in pallet_points:
+                        for point in point_list:
+                            featureDefn = point_layer.GetLayerDefn()
+                            feature = ogr.Feature(featureDefn)
+                            feature.SetGeometry(point.arc_point)
+                            feature.SetField("Pallet",point.pallet + 1)
+                            feature.SetField("Point", point.id)
+                            feature.SetField("Within", point.within)
+                            feature.SetField("X", point.x)
+                            feature.SetField("Y", point.y)
+                            point_layer.CreateFeature(feature)
+                            feature = None
+
+                    #Close point file
+                    outDataSource=None
+                    del outDataSource
+
+
+                    #Delete files if they already exist and the overwrite option is on
+                    #Rename the new files
+                    if overwrite and os.path.exists(data_file.replace(".shp","points.shp")):
+                        os.remove(dest + "\\" + filename.replace(".tif","_Contour_Shapefilepoints.shp")).replace("Raster_Z","")
+                    os.rename(outShapefile + ".shp",data_file.replace(".shp","points.shp"))
+
+
+                    if os.path.exists(data_file.replace(".shp","points.dbf")):
+                        os.remove(data_file.replace(".shp","points.dbf"))
+                    os.rename(outShapefile + ".dbf",data_file.replace(".shp","points.dbf"))
+
+
+                    if os.path.exists(data_file.replace(".shp","points.shx")):
+                        os.remove(data_file.replace(".shp","points.shx"))
+                    os.rename(outShapefile + ".shx",data_file.replace(".shp","points.shx"))
     
